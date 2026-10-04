@@ -15,6 +15,8 @@ struct Settings: Codable, Equatable {
     /// nil = language defaults; [] = filler removal off.
     var customFillerWords: [String]? = nil
     var domainCorrections: [DomainCorrection] = []
+    /// Latest transcript count retained on disk, matching Handy.NET (minimum one).
+    var historyLimit = 50
 
     static let directory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/HandySwift")
@@ -32,6 +34,7 @@ struct Settings: Codable, Equatable {
         appLanguage = try c.decodeIfPresent(String.self, forKey: .appLanguage) ?? d.appLanguage
         customFillerWords = try c.decodeIfPresent([String].self, forKey: .customFillerWords)
         domainCorrections = try c.decodeIfPresent([DomainCorrection].self, forKey: .domainCorrections) ?? []
+        historyLimit = max(1, try c.decodeIfPresent(Int.self, forKey: .historyLimit) ?? d.historyLimit)
     }
 
     /// Writes a default file on first run; a malformed file is logged and defaults are used.

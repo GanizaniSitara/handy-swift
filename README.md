@@ -16,6 +16,7 @@ Upstream Handy on macOS pastes with a simulated Cmd+V. A synthetic modifier like
 - **Ctrl+Space** starts and stops dictation, and **Esc** cancels it at any point, including mid-transcription.
 - **Focus guard.** Handy records the window that had focus when you started. If focus moved, it brings that window back before typing. If that fails, the text goes to the clipboard instead of into the wrong app. It re-checks the window before every character.
 - **Option+Shift+C** copies the last transcript. **Option+Shift+V** retypes it into the focused window.
+- **Transcript history.** Open **History…** from the menu bar to copy, delete or clear saved transcripts. The latest 50 are kept by default, including transcripts recovered to the clipboard; the last transcript remains available after restarting.
 - **Filler-word and stutter filter**, language-aware and ported from upstream Handy.
 - **Domain terms.** Context-gated phrase corrections, for example "service now" → "ServiceNow", but only near "ticket". They use the same JSON shape as Handy.NET.
 - **Recording pill.** A small overlay at the bottom of the screen shows live level bars. It never takes focus.
@@ -38,7 +39,7 @@ Requires macOS 14 or later on Apple silicon.
 
 ## Settings
 
-Use **Settings…** in the menu-bar menu (shortcut, microphone, typing, language, domain terms, open at login). Everything is stored in `~/Library/Application Support/HandySwift/settings.json` and are re-read on every dictation.
+Use **Settings…** in the menu-bar menu (shortcut, microphone, typing, language, domain terms, history limit, open at login). Settings are stored in `~/Library/Application Support/HandySwift/settings.json` and are re-read on every dictation.
 
 ```json
 {
@@ -61,6 +62,9 @@ Use **Settings…** in the menu-bar menu (shortcut, microphone, typing, language
 - `charDelayMs`: the pause between typed characters. Raise it if a terminal drops characters.
 - `pasteFocusPolicy`: `RestoreAndPaste` (the default), `RefuseAndCopy` or `PasteAnyway`.
 - `customFillerWords`: `null` uses the language defaults, and `[]` turns filler removal off.
+- `historyLimit`: number of recent transcripts to retain (default 50, minimum 1). Applying a smaller limit deletes older entries. Transcripts are saved in `history.json` beside settings, using Handy.NET's `Text` / `TimestampUtc` format. History contains transcript text only, with no audio retention.
+
+See [FEATURES.md](FEATURES.md) for the local Handy.NET parity audit and remaining work.
 
 ## Build from source
 

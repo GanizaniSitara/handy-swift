@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkey = HotkeyTap()
     private let overlay = Overlay()
     private let settingsWindow = SettingsWindowController()
+    private lazy var historyWindow = HistoryWindowController(history: dictation.history)
     private var modelReady = false
     private var sigterm: DispatchSourceSignal?
     private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
@@ -31,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Retype Last Transcript  ⌥⇧V", action: #selector(retypeLast), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "History…", action: #selector(showHistory), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Open Log", action: #selector(openLog), keyEquivalent: ""))
         loginItem.target = self
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -137,10 +139,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow.show()
     }
 
+    @objc private func showHistory() {
+        historyWindow.show()
+    }
+
     /// Applies settings that live outside the per-dictation reload: the hotkey and menu text.
     private func applySettings() {
         let settings = Settings.load()
         hotkey.dictation = settings.dictationShortcut
+        dictation.history.setLimit(settings.historyLimit)
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         refresh()
     }

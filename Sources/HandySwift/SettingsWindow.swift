@@ -35,6 +35,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func apply() {
+        draft.historyLimit = max(1, draft.historyLimit)
         draft.save()
         saved = draft
         let loginNow = SMAppService.mainApp.status == .enabled
@@ -331,6 +332,15 @@ private struct AdvancedPage: View {
                 DomainTermsEditor(rules: $store.draft.domainCorrections)
             }
             Hint("Rewrite misheard phrases to the right term. Lists are comma-separated. “Require any” limits a rule to text near one of those words; “Block” skips it near any of them.")
+
+            GroupTitle("History")
+            Card {
+                Row(label: "Saved transcripts", hint: "Keep the latest entries. Lowering this deletes older ones when applied.", first: true) {
+                    TextField("", value: $store.draft.historyLimit, format: .number)
+                        .labelsHidden().textFieldStyle(.roundedBorder).frame(width: 80)
+                }
+            }
+            Hint("At least one transcript is retained. The default is 50.")
 
             GroupTitle("UI")
             Card {

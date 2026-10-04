@@ -7,7 +7,8 @@ final class Dictation {
 
     private(set) var state: State = .idle { didSet { onStateChange?(state) } }
     var onStateChange: ((State) -> Void)?
-    private(set) var lastTranscript: String?
+    let history = HistoryService(limit: Settings.load().historyLimit)
+    var lastTranscript: String? { history.entries.last?.text }
 
     let transcriber = Transcriber()
     let recorder = Recorder()
@@ -117,7 +118,8 @@ final class Dictation {
                         self.state = .idle
                         return
                     }
-                    self.lastTranscript = text
+                    self.history.setLimit(settings.historyLimit)
+                    self.history.add(text)
                     self.deliver(text, to: target, settings: settings,
                                  logHead: "\(head) raw_chars=\(raw.count) chars=\(text.count)\(fixes)")
                 }
