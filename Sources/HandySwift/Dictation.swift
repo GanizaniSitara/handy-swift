@@ -87,6 +87,13 @@ final class Dictation {
         default: mic = "undetermined"
         }
         let id = counter, gen = generation, target = target
+
+        // Parakeet rejects clips under 300 ms; an accidental double-tap shouldn't beep as an error.
+        if samples.count < 16_000 * 3 / 10 {
+            DiagLog.write("dictation id=\(id) rec_ms=\(recMs) samples=\(samples.count) outcome=too_short")
+            state = .idle
+            return
+        }
         state = .transcribing
 
         Task {

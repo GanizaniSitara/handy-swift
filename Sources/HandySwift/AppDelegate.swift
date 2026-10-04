@@ -66,10 +66,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 _ = try await dictation.transcriber.load()
                 DiagLog.write("session model loaded")
-                await MainActor.run { self.modelReady = true; self.refresh() }
+                await MainActor.run {
+                    self.modelReady = true
+                    self.settingsWindow.store.modelStatus = "Loaded"
+                    self.refresh()
+                }
             } catch {
                 DiagLog.write("session model load failed error=\"\(error.localizedDescription)\"")
-                await MainActor.run { self.statusLine.title = "Model failed to load — see log" }
+                await MainActor.run {
+                    self.statusLine.title = "Model failed to load — see log"
+                    self.settingsWindow.store.modelStatus = "Failed — see Log"
+                }
             }
         }
     }
