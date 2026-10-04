@@ -5,16 +5,11 @@ import Cocoa
 enum Injector {
     enum Result { case typed, focusChanged(typed: Int) }
 
-    /// Per-character delay; terminals drop input if events arrive too fast.
-    static var charDelay: TimeInterval {
-        let ms = UserDefaults.standard.object(forKey: "charDelayMs") as? Double ?? 3
-        return ms / 1000
-    }
-
     /// Blocking; call off the main thread. Re-checks the target before every character.
-    static func type(_ text: String, into target: FocusTarget) -> Result {
+    /// `charDelayMs` paces input — terminals drop characters that arrive too fast.
+    static func type(_ text: String, into target: FocusTarget, charDelayMs: Double) -> Result {
         let source = CGEventSource(stateID: .privateState)
-        let delay = charDelay
+        let delay = charDelayMs / 1000
         var typed = 0
         for ch in text {
             guard FocusGuard.matches(target) else { return .focusChanged(typed: typed) }

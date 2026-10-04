@@ -27,11 +27,12 @@ final class Dictation {
         }
     }
 
-    /// Returns true if there was something to cancel (so Escape is consumed).
-    func cancel() -> Bool {
+    var isActive: Bool { state != .idle }
+
+    func cancel() {
         switch state {
         case .idle:
-            return false
+            return
         case .recording:
             _ = recorder.stop()
             DiagLog.write("dictation id=\(counter) outcome=cancelled stage=recording")
@@ -40,7 +41,16 @@ final class Dictation {
         }
         generation += 1
         state = .idle
-        return true
+    }
+
+    /// Types the last transcript into whatever is focused now — recovery when a paste was refused.
+    func retypeLast() {
+        guard state == .idle, let text = lastTranscript, let target = FocusGuard.current() else { NSSound.beep(); return }
+        let delay = Settings.load().charDelayMs
+        injectQueue.async {
+            let result = Injector.type(text, into: target, charDelayMs: delay)
+            DiagLog.write("retype-last chars=\(text.count) target=\(target) outcome=\(result)")
+        }
     }
 
     private func start() {
@@ -75,18 +85,25 @@ final class Dictation {
                     DiagLog.write("\(head) outcome=error stage=asr error=\"\(error.localizedDescription)\"")
                     NSSound.beep()
                     self.state = .idle
-                case .success(let text) where text.isEmpty:
-                    DiagLog.write("\(head) outcome=empty")
-                    self.state = .idle
-                case .success(let text):
+                case .success(let raw):
+                    let settings = Settings.load()
+                    let filtered = TranscriptFilter.filter(raw, lang: settings.appLanguage, customFillerWords: settings.customFillerWords)
+                    let (text, rules) = DomainCorrector.apply(filtered, settings.domainCorrections)
+                    let fixes = rules.isEmpty ? "" : " corrections=\"\(rules.map { "\($0.from)->\($0.to)x\($0.count)" }.joined(separator: ";"))\""
+                    if text.isEmpty {
+                        DiagLog.write("\(head) raw_chars=\(raw.count) outcome=empty")
+                        self.state = .idle
+                        return
+                    }
                     self.lastTranscript = text
-                    self.deliver(text, to: target, logHead: "\(head) chars=\(text.count)")
+                    self.deliver(text, to: target, charDelayMs: settings.charDelayMs,
+                                 logHead: "\(head) raw_chars=\(raw.count) chars=\(text.count)\(fixes)")
                 }
             }
         }
     }
 
-    private func deliver(_ text: String, to target: FocusTarget?, logHead: String) {
+    private func deliver(_ text: String, to target: FocusTarget?, charDelayMs: Double, logHead: String) {
         guard let target, FocusGuard.matches(target) else {
             Injector.copyToClipboard(text)
             DiagLog.write("\(logHead) outcome=clipboard reason=focus_changed_before_paste")
@@ -95,7 +112,7 @@ final class Dictation {
             return
         }
         injectQueue.async {
-            let result = Injector.type(text, into: target)
+            let result = Injector.type(text, into: target, charDelayMs: charDelayMs)
             DispatchQueue.main.async {
                 switch result {
                 case .typed:

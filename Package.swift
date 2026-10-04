@@ -12,6 +12,7 @@ let package = Package(
         .executableTarget(
             name: "HandySwift",
             dependencies: [.product(name: "FluidAudio", package: "FluidAudio")]
-        )
+        ),
+        .testTarget(name: "HandySwiftTests", dependencies: ["HandySwift"]),
     ]
 )

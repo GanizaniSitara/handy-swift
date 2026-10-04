@@ -1,19 +1,25 @@
 import Cocoa
 
-/// Listens for the dictation hotkey (Ctrl+Space) and Escape via a session event tap.
-/// Never synthesises modifier keys: it only observes and, for its own keys, swallows.
+/// Listens for Handy's hotkeys via a session event tap. Never synthesises modifier keys:
+/// it only observes and, for its own chords, swallows the key down and matching key up.
+///
+///   Ctrl+Space          toggle dictation
+///   Esc                 cancel (consumed only while a dictation is active)
+///   Option+Shift+C      copy last transcript (same chord as Handy.NET)
+///   Option+Shift+V      retype last transcript into the focused window
 final class HotkeyTap {
-    enum Action { case toggle, cancel }
-
-    /// Called on the main queue. Return value for `.cancel` says whether Escape was consumed.
+    /// Handlers run on the main queue, after the tap callback has returned.
     var onToggle: (() -> Void)?
-    var onCancel: (() -> Bool)?
+    var onCopyLast: (() -> Void)?
+    var onRetypeLast: (() -> Void)?
+    /// Called synchronously in the tap: must be cheap. Returns whether Escape was consumed.
+    var isActive: (() -> Bool)?
+    var onCancel: (() -> Void)?
 
     private var tap: CFMachPort?
-    private var swallowingSpaceUp = false
+    private var swallowedKeyUps = Set<Int64>()
 
-    private static let spaceKey: Int64 = 49
-    private static let escapeKey: Int64 = 53
+    private enum Key { static let space: Int64 = 49, escape: Int64 = 53, c: Int64 = 8, v: Int64 = 9 }
 
     func start() -> Bool {
         let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
@@ -37,36 +43,34 @@ final class HotkeyTap {
         return true
     }
 
-    // Runs on the main run loop (the tap's source is installed there).
+    // Runs on the main run loop. Work is deferred so a slow handler can't time the tap out.
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            DiagLog.write("session hotkey tap re-enabled after \(type == .tapDisabledByTimeout ? "timeout" : "user input")")
             return Unmanaged.passUnretained(event)
         }
 
         let key = event.getIntegerValueField(.keyboardEventKeycode)
-        let flags = event.flags
 
-        if key == Self.spaceKey {
-            if type == .keyDown,
-               flags.contains(.maskControl),
-               !flags.contains(.maskCommand), !flags.contains(.maskAlternate), !flags.contains(.maskShift) {
-                swallowingSpaceUp = true
-                if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { onToggle?() }
-                return nil
-            }
-            if type == .keyUp && swallowingSpaceUp {
-                swallowingSpaceUp = false
-                return nil
-            }
+        if type == .keyUp {
+            return swallowedKeyUps.remove(key) != nil ? nil : Unmanaged.passUnretained(event)
         }
 
-        if key == Self.escapeKey && type == .keyDown,
-           event.getIntegerValueField(.keyboardEventAutorepeat) == 0,
-           onCancel?() == true {
-            return nil
+        let repeating = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        let mods = event.flags.intersection([.maskControl, .maskAlternate, .maskShift, .maskCommand])
+
+        let action: (() -> Void)?
+        switch (key, mods) {
+        case (Key.space, [.maskControl]): action = onToggle
+        case (Key.c, [.maskAlternate, .maskShift]): action = onCopyLast
+        case (Key.v, [.maskAlternate, .maskShift]): action = onRetypeLast
+        case (Key.escape, []) where isActive?() == true: action = onCancel
+        default: return Unmanaged.passUnretained(event)
         }
 
-        return Unmanaged.passUnretained(event)
+        swallowedKeyUps.insert(key)
+        if !repeating, let action { DispatchQueue.main.async(execute: action) }
+        return nil
     }
 }

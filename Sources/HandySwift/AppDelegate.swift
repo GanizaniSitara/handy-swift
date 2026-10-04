@@ -15,15 +15,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(statusLine)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Copy Last Transcript", action: #selector(copyLast), keyEquivalent: "c"))
-        menu.addItem(NSMenuItem(title: "Open Log", action: #selector(openLog), keyEquivalent: "l"))
+        menu.addItem(NSMenuItem(title: "Copy Last Transcript  ⌥⇧C", action: #selector(copyLast), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Retype Last Transcript  ⌥⇧V", action: #selector(retypeLast), keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Open Settings File", action: #selector(openSettings), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Open Log", action: #selector(openLog), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Handy Swift", action: #selector(quit), keyEquivalent: "q"))
         statusItem.menu = menu
 
         dictation.onStateChange = { [weak self] _ in self?.refresh() }
         hotkey.onToggle = { [weak self] in self?.dictation.toggle() }
-        hotkey.onCancel = { [weak self] in self?.dictation.cancel() ?? false }
+        hotkey.isActive = { [weak self] in self?.dictation.isActive ?? false }
+        hotkey.onCancel = { [weak self] in self?.dictation.cancel() }
+        hotkey.onCopyLast = { [weak self] in self?.copyLast() }
+        hotkey.onRetypeLast = { [weak self] in self?.dictation.retypeLast() }
         refresh()
 
         AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -73,6 +79,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func copyLast() {
         guard let text = dictation.lastTranscript else { NSSound.beep(); return }
         Injector.copyToClipboard(text)
+    }
+
+    @objc private func retypeLast() {
+        // Let the menu close and focus return to the previous window first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.dictation.retypeLast() }
+    }
+
+    @objc private func openSettings() {
+        _ = Settings.load()  // creates the file with defaults if missing
+        NSWorkspace.shared.open(Settings.url)
     }
 
     @objc private func openLog() {
