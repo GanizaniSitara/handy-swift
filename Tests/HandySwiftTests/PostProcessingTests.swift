@@ -106,3 +106,16 @@ final class TranscriptFilterTests: XCTestCase {
         XCTAssertEqual(TranscriptFilter.filter("uh okay", lang: "en", customFillerWords: []), "uh okay")
     }
 }
+
+final class FocusPolicyTests: XCTestCase {
+    func testParseMatchesHandyNet() {
+        XCTAssertEqual(Injector.FocusPolicy.parse(nil), .restoreAndPaste)
+        XCTAssertEqual(Injector.FocusPolicy.parse(""), .restoreAndPaste)
+        XCTAssertEqual(Injector.FocusPolicy.parse("RefuseAndCopy"), .refuseAndCopy)
+        XCTAssertEqual(Injector.FocusPolicy.parse("refuse"), .refuseAndCopy)
+        XCTAssertEqual(Injector.FocusPolicy.parse("restore"), .restoreAndPaste)
+        XCTAssertEqual(Injector.FocusPolicy.parse("PasteAnyway"), .pasteAnyway)
+        XCTAssertEqual(Injector.FocusPolicy.parse("unknown"), .restoreAndPaste)
+        XCTAssertEqual(Settings().pasteFocusPolicy, "RestoreAndPaste")
+    }
+}

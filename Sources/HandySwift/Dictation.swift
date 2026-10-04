@@ -96,31 +96,33 @@ final class Dictation {
                         return
                     }
                     self.lastTranscript = text
-                    self.deliver(text, to: target, charDelayMs: settings.charDelayMs,
+                    self.deliver(text, to: target, settings: settings,
                                  logHead: "\(head) raw_chars=\(raw.count) chars=\(text.count)\(fixes)")
                 }
             }
         }
     }
 
-    private func deliver(_ text: String, to target: FocusTarget?, charDelayMs: Double, logHead: String) {
-        guard let target, FocusGuard.matches(target) else {
+    private func deliver(_ text: String, to target: FocusTarget?, settings: Settings, logHead: String) {
+        guard let target else {
             Injector.copyToClipboard(text)
-            DiagLog.write("\(logHead) outcome=clipboard reason=focus_changed_before_paste")
+            DiagLog.write("\(logHead) outcome=clipboard reason=no_target")
             NSSound.beep()
             state = .idle
             return
         }
+        let policy = Injector.FocusPolicy.parse(settings.pasteFocusPolicy)
         injectQueue.async {
-            let result = Injector.type(text, into: target, charDelayMs: charDelayMs)
+            let result = Injector.type(text, into: target, charDelayMs: settings.charDelayMs, policy: policy)
             DispatchQueue.main.async {
                 switch result {
-                case .typed:
-                    DiagLog.write("\(logHead) outcome=typed")
+                case .typed(let restores):
+                    DiagLog.write("\(logHead) policy=\(policy.rawValue) focus_restores=\(restores) outcome=typed")
                 case .focusChanged(let typed):
                     let rest = String(text.dropFirst(typed))
                     Injector.copyToClipboard(rest)
-                    DiagLog.write("\(logHead) outcome=partial typed=\(typed) remainder_on_clipboard=\(rest.count)")
+                    let now = FocusGuard.current().map(String.init(describing:)) ?? "none"
+                    DiagLog.write("\(logHead) policy=\(policy.rawValue) outcome=\(typed == 0 ? "clipboard" : "partial") typed=\(typed) remainder_on_clipboard=\(rest.count) focused_now=\(now)")
                     NSSound.beep()
                 }
                 self.state = .idle

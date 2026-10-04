@@ -5,6 +5,8 @@ import Foundation
 /// Re-read on every dictation, so edits take effect without a restart.
 struct Settings: Codable {
     var charDelayMs: Double = 3
+    /// RestoreAndPaste (default) | RefuseAndCopy | PasteAnyway — as Handy.NET.
+    var pasteFocusPolicy = "RestoreAndPaste"
     var appLanguage: String = "en"
     /// nil = language defaults; [] = filler removal off.
     var customFillerWords: [String]? = nil
@@ -20,6 +22,7 @@ struct Settings: Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Settings()
         charDelayMs = try c.decodeIfPresent(Double.self, forKey: .charDelayMs) ?? d.charDelayMs
+        pasteFocusPolicy = try c.decodeIfPresent(String.self, forKey: .pasteFocusPolicy) ?? d.pasteFocusPolicy
         appLanguage = try c.decodeIfPresent(String.self, forKey: .appLanguage) ?? d.appLanguage
         customFillerWords = try c.decodeIfPresent([String].self, forKey: .customFillerWords)
         domainCorrections = try c.decodeIfPresent([DomainCorrection].self, forKey: .domainCorrections) ?? []

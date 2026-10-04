@@ -37,6 +37,32 @@ enum FocusGuard {
         return FocusTarget(pid: pid, windowId: windowId, appName: name)
     }
 
+    /// Brings the target app and window back to the front via Accessibility (works from a
+    /// background agent, unlike NSRunningApplication.activate). Returns whether it took.
+    static func restore(_ target: FocusTarget) -> Bool {
+        let app = AXUIElementCreateApplication(target.pid)
+        AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        if let wanted = target.windowId {
+            var windowsRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+               let windows = windowsRef as? [AXUIElement] {
+                for w in windows {
+                    var id: CGWindowID = 0
+                    if _AXUIElementGetWindow(w, &id) == .success, id == wanted {
+                        AXUIElementSetAttributeValue(w, kAXMainAttribute as CFString, kCFBooleanTrue)
+                        AXUIElementPerformAction(w, kAXRaiseAction as CFString)
+                        break
+                    }
+                }
+            }
+        }
+        for _ in 0..<10 {
+            if matches(target) { return true }
+            Thread.sleep(forTimeInterval: 0.03)
+        }
+        return false
+    }
+
     /// Same app, and the same window when both sides know their window id.
     static func matches(_ target: FocusTarget) -> Bool {
         guard let now = current(), now.pid == target.pid else { return false }
