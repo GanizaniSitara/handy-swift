@@ -42,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SessionMarker.phase("\(state)")
             self?.refresh()
             guard let self else { return }
-            self.overlay.show(state, level: { [recorder = self.dictation.recorder] in recorder.level })
+            self.overlay.show(state, levels: { [recorder = self.dictation.recorder] in recorder.levels })
         }
         hotkey.onToggle = { [weak self] in self?.dictation.toggle() }
         hotkey.isActive = { [weak self] in self?.dictation.isActive ?? false }
@@ -85,14 +85,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refresh() {
-        let (symbol, text): (String, String)
+        let text: String
         switch dictation.state {
-        case .idle: (symbol, text) = ("mic", modelReady ? "Ready — Ctrl+Space to dictate" : "Loading model…")
-        case .recording: (symbol, text) = ("mic.fill", "Recording — Ctrl+Space to finish, Esc to cancel")
-        case .transcribing: (symbol, text) = ("ellipsis.circle", "Transcribing — Esc to cancel")
+        case .idle: text = modelReady ? "Ready — Ctrl+Space to dictate" : "Loading model…"
+        case .recording: text = "Recording — Ctrl+Space to finish, Esc to cancel"
+        case .transcribing: text = "Transcribing — Esc to cancel"
         }
-        statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Handy Swift")
-        statusItem.button?.contentTintColor = dictation.state == .recording ? .systemRed : nil
+        statusItem.button?.image = Palette.trayIcon(dictation.state)
+        statusItem.button?.toolTip = "Handy Swift"
         statusLine.title = text
     }
 
