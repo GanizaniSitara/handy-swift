@@ -1,4 +1,5 @@
 import Cocoa
+import AVFoundation
 
 /// Hotkey → record → transcribe → type into the window that was focused when recording began.
 final class Dictation {
@@ -9,7 +10,7 @@ final class Dictation {
     private(set) var lastTranscript: String?
 
     let transcriber = Transcriber()
-    private let recorder = Recorder()
+    let recorder = Recorder()
     private let injectQueue = DispatchQueue(label: "HandySwift.inject")
 
     private var target: FocusTarget?
@@ -76,6 +77,14 @@ final class Dictation {
     private func finish() {
         let samples = recorder.stop()
         let recMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+        let peak = samples.reduce(Float(0)) { max($0, abs($1)) }
+        let mic: String
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: mic = "granted"
+        case .denied: mic = "denied"
+        case .restricted: mic = "restricted"
+        default: mic = "undetermined"
+        }
         let id = counter, gen = generation, target = target
         state = .transcribing
 
@@ -85,7 +94,7 @@ final class Dictation {
             let asrMs = Int(Date().timeIntervalSince(t0) * 1000)
             await MainActor.run {
                 guard gen == self.generation else { return }  // cancelled while decoding
-                let head = "dictation id=\(id) rec_ms=\(recMs) samples=\(samples.count) asr_ms=\(asrMs) target=\(target.map(String.init(describing:)) ?? "none")"
+                let head = "dictation id=\(id) rec_ms=\(recMs) samples=\(samples.count) peak=\(String(format: "%.4f", peak)) mic=\(mic) asr_ms=\(asrMs) target=\(target.map(String.init(describing:)) ?? "none")"
                 switch result {
                 case .failure(let error):
                     DiagLog.write("\(head) outcome=error stage=asr error=\"\(error.localizedDescription)\"")

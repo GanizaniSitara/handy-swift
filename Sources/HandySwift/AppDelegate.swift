@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusLine = NSMenuItem(title: "Loading model…", action: nil, keyEquivalent: "")
     private let dictation = Dictation()
     private let hotkey = HotkeyTap()
+    private let overlay = Overlay()
     private var modelReady = false
     private var sigterm: DispatchSourceSignal?
     private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
@@ -40,6 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictation.onStateChange = { [weak self] state in
             SessionMarker.phase("\(state)")
             self?.refresh()
+            guard let self else { return }
+            self.overlay.show(state, level: { [recorder = self.dictation.recorder] in recorder.level })
         }
         hotkey.onToggle = { [weak self] in self?.dictation.toggle() }
         hotkey.isActive = { [weak self] in self?.dictation.isActive ?? false }

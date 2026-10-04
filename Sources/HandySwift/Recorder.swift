@@ -5,6 +5,10 @@ final class Recorder {
     private let engine = AVAudioEngine()
     private let lock = NSLock()
     private var samples: [Float] = []
+    private var _level: Float = 0
+
+    /// RMS of the most recent buffer, 0…1. Read by the overlay meter.
+    var level: Float { lock.withLock { _level } }
     private let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
 
     func start() throws {
@@ -30,7 +34,11 @@ final class Recorder {
             }
             guard error == nil, let data = out.floatChannelData else { return }
             let chunk = UnsafeBufferPointer(start: data[0], count: Int(out.frameLength))
-            self.lock.withLock { self.samples.append(contentsOf: chunk) }
+            let rms = chunk.isEmpty ? 0 : (chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count)).squareRoot()
+            self.lock.withLock {
+                self.samples.append(contentsOf: chunk)
+                self._level = rms
+            }
         }
 
         engine.prepare()
@@ -46,6 +54,6 @@ final class Recorder {
     func stop() -> [Float] {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        return lock.withLock { samples }
+        return lock.withLock { _level = 0; return samples }
     }
 }
