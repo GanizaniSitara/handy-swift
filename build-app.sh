@@ -6,7 +6,9 @@ cd "$(dirname "$0")"
 CONFIG="${CONFIG:-release}"
 APP_NAME="HandySwift"
 BUNDLE_ID="com.user.handyswift"
+VERSION="${VERSION:-0.1.0}"
 APP_DIR="build/${APP_NAME}.app"
+ENTITLEMENTS="build/${APP_NAME}.entitlements"
 
 swift build -c "$CONFIG"
 
@@ -30,7 +32,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <key>CFBundleDisplayName</key><string>Handy Swift</string>
     <key>CFBundleIdentifier</key><string>${BUNDLE_ID}</string>
     <key>CFBundleVersion</key><string>1</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
     <key>CFBundleExecutable</key><string>${APP_NAME}</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
@@ -42,7 +44,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-cat > "$APP_DIR/Contents/HandySwift.entitlements" <<ENTITLEMENTS
+cat > "$ENTITLEMENTS" <<ENTITLEMENTS
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -52,9 +54,17 @@ cat > "$APP_DIR/Contents/HandySwift.entitlements" <<ENTITLEMENTS
 </plist>
 ENTITLEMENTS
 
-# A stable identity keeps Accessibility/Microphone grants across rebuilds; ad-hoc (-) re-prompts every build.
-SIGN_IDENTITY="${SIGN_IDENTITY:-Apple Development}"
-codesign --force --deep --options runtime --entitlements "$APP_DIR/Contents/HandySwift.entitlements" \
+# A stable identity keeps Accessibility/Microphone grants across rebuilds; ad-hoc (-) means
+# macOS asks again after every rebuild. Uses an "Apple Development" identity when one exists,
+# otherwise ad-hoc. Release DMGs are built with SIGN_IDENTITY=- (see make-dmg.sh).
+if [[ -z "${SIGN_IDENTITY:-}" ]]; then
+    if security find-identity -v -p codesigning 2>/dev/null | grep -q "Apple Development"; then
+        SIGN_IDENTITY="Apple Development"
+    else
+        SIGN_IDENTITY="-"
+    fi
+fi
+codesign --force --deep --options runtime --entitlements "$ENTITLEMENTS" \
     --identifier "$BUNDLE_ID" \
     --sign "$SIGN_IDENTITY" \
     "$APP_DIR"
