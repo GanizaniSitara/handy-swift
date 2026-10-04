@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 CONFIG="${CONFIG:-release}"
 APP_NAME="HandySwift"
 BUNDLE_ID="com.user.handyswift"
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.2.0}"
 APP_DIR="build/${APP_NAME}.app"
 ENTITLEMENTS="build/${APP_NAME}.entitlements"
 
