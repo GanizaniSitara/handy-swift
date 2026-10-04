@@ -4,11 +4,14 @@ import PackageDescription
 
 let package = Package(
     name: "HandySwift",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.7.0"),
+    ],
     targets: [
         .executableTarget(
             name: "HandySwift",
-            dependencies: []
+            dependencies: [.product(name: "FluidAudio", package: "FluidAudio")]
         )
     ]
 )

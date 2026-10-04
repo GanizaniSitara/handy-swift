@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-CONFIG="${CONFIG:-debug}"
+CONFIG="${CONFIG:-release}"
 APP_NAME="HandySwift"
 BUNDLE_ID="com.user.handyswift"
 APP_DIR="build/${APP_NAME}.app"
@@ -33,15 +33,11 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleExecutable</key><string>${APP_NAME}</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>LSMinimumSystemVersion</key><string>13.0</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>HandySwift needs microphone access to record dictation.</string>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>HandySwift uses Speech Recognition to transcribe your dictation locally.</string>
-    <key>NSAccessibilityUsageDescription</key>
-    <string>HandySwift needs Accessibility access to inject text and verify target windows.</string>
 </dict>
 </plist>
 PLIST
@@ -56,7 +52,8 @@ cat > "$APP_DIR/Contents/HandySwift.entitlements" <<ENTITLEMENTS
 </plist>
 ENTITLEMENTS
 
-SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+# A stable identity keeps Accessibility/Microphone grants across rebuilds; ad-hoc (-) re-prompts every build.
+SIGN_IDENTITY="${SIGN_IDENTITY:-Apple Development}"
 codesign --force --deep --options runtime --entitlements "$APP_DIR/Contents/HandySwift.entitlements" \
     --identifier "$BUNDLE_ID" \
     --sign "$SIGN_IDENTITY" \

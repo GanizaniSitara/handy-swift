@@ -1,39 +1,39 @@
 import Cocoa
-import CoreGraphics
 
-@MainActor
-class Injector {
-    static let shared = Injector()
-    
-    func insertText(_ text: String, target: FocusTarget) {
-        for char in text {
-            // Mid-injection focus guard: abort if the target window changes
-            guard FocusGuard.shared.verifyTarget(target) else {
-                NSLog("Focus lost or changed during injection. Aborting.")
-                // In a real app, we might put the remaining text on the clipboard here
-                break
+/// Types text as Unicode key events — no Cmd+V, no synthetic modifiers. Every event carries
+/// empty flags so a physically held modifier cannot turn a character into a shortcut.
+enum Injector {
+    enum Result { case typed, focusChanged(typed: Int) }
+
+    /// Per-character delay; terminals drop input if events arrive too fast.
+    static var charDelay: TimeInterval {
+        let ms = UserDefaults.standard.object(forKey: "charDelayMs") as? Double ?? 3
+        return ms / 1000
+    }
+
+    /// Blocking; call off the main thread. Re-checks the target before every character.
+    static func type(_ text: String, into target: FocusTarget) -> Result {
+        let source = CGEventSource(stateID: .privateState)
+        let delay = charDelay
+        var typed = 0
+        for ch in text {
+            guard FocusGuard.matches(target) else { return .focusChanged(typed: typed) }
+            let units = Array(String(ch).utf16)
+            for down in [true, false] {
+                guard let e = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down) else { continue }
+                e.flags = []
+                e.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+                e.post(tap: .cghidEventTap)
             }
-            
-            // Convert character to UTF-16 code units for CGEvent
-            let utf16 = Array(String(char).utf16)
-            guard !utf16.isEmpty else { continue }
-            
-            // We use CGEvent(keyboardEventSource:virtualKey:keyDown:) with a dummy keycode
-            // and then set the unicode string.
-            let src = CGEventSource(stateID: .hidSystemState)
-            
-            if let keyDown = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: true),
-               let keyUp = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: false) {
-                
-                keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
-                keyUp.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
-                
-                keyDown.post(tap: .cghidEventTap)
-                keyUp.post(tap: .cghidEventTap)
-            }
-            
-            // Sleep very briefly to ensure events are processed in order
-            Thread.sleep(forTimeInterval: 0.002)
+            typed += 1
+            Thread.sleep(forTimeInterval: delay)
         }
+        return .typed
+    }
+
+    static func copyToClipboard(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
     }
 }
