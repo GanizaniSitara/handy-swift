@@ -17,6 +17,7 @@ final class Dictation {
     private var startedAt = Date()
     private var generation = 0
     private var counter = 0
+    private var micUsed = "default"
 
     // All entry points run on the main queue.
 
@@ -64,7 +65,7 @@ final class Dictation {
         counter += 1
         target = FocusGuard.current()
         do {
-            try recorder.start()
+            micUsed = try recorder.start(deviceName: Settings.load().microphoneDeviceName)
         } catch {
             DiagLog.write("dictation id=\(counter) outcome=error stage=record error=\"\(error.localizedDescription)\"")
             NSSound.beep()
@@ -94,7 +95,7 @@ final class Dictation {
             let asrMs = Int(Date().timeIntervalSince(t0) * 1000)
             await MainActor.run {
                 guard gen == self.generation else { return }  // cancelled while decoding
-                let head = "dictation id=\(id) rec_ms=\(recMs) samples=\(samples.count) peak=\(String(format: "%.4f", peak)) mic=\(mic) asr_ms=\(asrMs) target=\(target.map(String.init(describing:)) ?? "none")"
+                let head = "dictation id=\(id) rec_ms=\(recMs) samples=\(samples.count) peak=\(String(format: "%.4f", peak)) mic=\(mic) device=\"\(self.micUsed)\" asr_ms=\(asrMs) target=\(target.map(String.init(describing:)) ?? "none")"
                 switch result {
                 case .failure(let error):
                     DiagLog.write("\(head) outcome=error stage=asr error=\"\(error.localizedDescription)\"")

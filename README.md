@@ -38,7 +38,7 @@ Requires macOS 14 or later on Apple silicon.
 
 ## Settings
 
-Use **Open Settings File** in the menu-bar menu. The settings live in `~/Library/Application Support/HandySwift/settings.json` and are re-read on every dictation.
+Use **Settings…** in the menu-bar menu (shortcut, microphone, typing, language, domain terms, open at login). Everything is stored in `~/Library/Application Support/HandySwift/settings.json` and are re-read on every dictation.
 
 ```json
 {

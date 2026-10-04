@@ -3,7 +3,7 @@ import Cocoa
 /// Listens for Handy's hotkeys via a session event tap. Never synthesises modifier keys:
 /// it only observes and, for its own chords, swallows the key down and matching key up.
 ///
-///   Ctrl+Space          toggle dictation
+///   Ctrl+Space          toggle dictation (rebindable via settings "hotkey")
 ///   Esc                 cancel (consumed only while a dictation is active)
 ///   Option+Shift+C      copy last transcript (same chord as Handy.NET)
 ///   Option+Shift+V      retype last transcript into the focused window
@@ -16,10 +16,15 @@ final class HotkeyTap {
     var isActive: (() -> Bool)?
     var onCancel: (() -> Void)?
 
+    /// The dictation chord; set from settings.
+    var dictation = Shortcut.dictationDefault
+    /// While the settings window records a new shortcut, let every key through.
+    var suspended = false
+
     private var tap: CFMachPort?
     private var swallowedKeyUps = Set<Int64>()
 
-    private enum Key { static let space: Int64 = 49, escape: Int64 = 53, c: Int64 = 8, v: Int64 = 9 }
+    private enum Key { static let escape: Int64 = 53, c: Int64 = 8, v: Int64 = 9 }
 
     func start() -> Bool {
         let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
@@ -51,6 +56,8 @@ final class HotkeyTap {
             return Unmanaged.passUnretained(event)
         }
 
+        if suspended { return Unmanaged.passUnretained(event) }
+
         let key = event.getIntegerValueField(.keyboardEventKeycode)
 
         if type == .keyUp {
@@ -62,7 +69,7 @@ final class HotkeyTap {
 
         let action: (() -> Void)?
         switch (key, mods) {
-        case (Key.space, [.maskControl]): action = onToggle
+        case (dictation.keyCode, dictation.modifiers): action = onToggle
         case (Key.c, [.maskAlternate, .maskShift]): action = onCopyLast
         case (Key.v, [.maskAlternate, .maskShift]): action = onRetypeLast
         case (Key.escape, []) where isActive?() == true: action = onCancel

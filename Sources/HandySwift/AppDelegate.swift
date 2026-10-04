@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dictation = Dictation()
     private let hotkey = HotkeyTap()
     private let overlay = Overlay()
+    private let settingsWindow = SettingsWindowController()
     private var modelReady = false
     private var sigterm: DispatchSourceSignal?
     private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
@@ -29,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Copy Last Transcript  ⌥⇧C", action: #selector(copyLast), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Retype Last Transcript  ⌥⇧V", action: #selector(retypeLast), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Open Settings File", action: #selector(openSettings), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Open Log", action: #selector(openLog), keyEquivalent: ""))
         loginItem.target = self
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -49,6 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onCancel = { [weak self] in self?.dictation.cancel() }
         hotkey.onCopyLast = { [weak self] in self?.copyLast() }
         hotkey.onRetypeLast = { [weak self] in self?.dictation.retypeLast() }
+        settingsWindow.store.suspendHotkey = { [weak self] on in self?.hotkey.suspended = on }
+        NotificationCenter.default.addObserver(forName: Settings.didChange, object: nil, queue: .main) { [weak self] _ in
+            self?.applySettings()
+        }
+        hotkey.dictation = Settings.load().dictationShortcut
         refresh()
 
         AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -87,8 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refresh() {
         let text: String
         switch dictation.state {
-        case .idle: text = modelReady ? "Ready — Ctrl+Space to dictate" : "Loading model…"
-        case .recording: text = "Recording — Ctrl+Space to finish, Esc to cancel"
+        case .idle: text = modelReady ? "Ready — \(hotkey.dictation.symbols) to dictate" : "Loading model…"
+        case .recording: text = "Recording — \(hotkey.dictation.symbols) to finish, Esc to cancel"
         case .transcribing: text = "Transcribing — Esc to cancel"
         }
         statusItem.button?.image = Palette.trayIcon(dictation.state)
@@ -120,9 +126,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 
-    @objc private func openSettings() {
-        _ = Settings.load()  // creates the file with defaults if missing
-        NSWorkspace.shared.open(Settings.url)
+    @objc private func showSettings() {
+        settingsWindow.show()
+    }
+
+    /// Applies settings that live outside the per-dictation reload: the hotkey and menu text.
+    private func applySettings() {
+        let settings = Settings.load()
+        hotkey.dictation = settings.dictationShortcut
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        refresh()
     }
 
     @objc private func openLog() {

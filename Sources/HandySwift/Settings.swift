@@ -3,7 +3,11 @@ import Foundation
 /// ~/Library/Application Support/HandySwift/settings.json. Field names match Handy.NET's
 /// settings.json (camelCase) so a domainCorrections list can be copied between the two.
 /// Re-read on every dictation, so edits take effect without a restart.
-struct Settings: Codable {
+struct Settings: Codable, Equatable {
+    /// Dictation chord in Handy.NET's notation, e.g. "Ctrl+Space".
+    var hotkey = "Ctrl+Space"
+    /// Input device name; empty = system default.
+    var microphoneDeviceName = ""
     var charDelayMs: Double = 3
     /// RestoreAndPaste (default) | RefuseAndCopy | PasteAnyway — as Handy.NET.
     var pasteFocusPolicy = "RestoreAndPaste"
@@ -21,6 +25,8 @@ struct Settings: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Settings()
+        hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? d.hotkey
+        microphoneDeviceName = try c.decodeIfPresent(String.self, forKey: .microphoneDeviceName) ?? d.microphoneDeviceName
         charDelayMs = try c.decodeIfPresent(Double.self, forKey: .charDelayMs) ?? d.charDelayMs
         pasteFocusPolicy = try c.decodeIfPresent(String.self, forKey: .pasteFocusPolicy) ?? d.pasteFocusPolicy
         appLanguage = try c.decodeIfPresent(String.self, forKey: .appLanguage) ?? d.appLanguage
@@ -42,6 +48,10 @@ struct Settings: Codable {
             return Settings()
         }
     }
+
+    var dictationShortcut: Shortcut { Shortcut(hotkey) ?? .dictationDefault }
+
+    static let didChange = Notification.Name("HandySwiftSettingsDidChange")
 
     func save() {
         try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)

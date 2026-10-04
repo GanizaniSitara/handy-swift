@@ -2,7 +2,7 @@ import Foundation
 
 /// An explicit phrase correction with optional context gates. Same JSON shape and semantics as
 /// Handy.NET's DomainCorrection / DomainCorrectionService.
-struct DomainCorrection: Codable {
+struct DomainCorrection: Codable, Equatable {
     var enabled = true
     /// Legacy single-variant field; used when `variants` is empty.
     var from = ""
