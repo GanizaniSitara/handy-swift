@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
@@ -7,9 +8,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dictation = Dictation()
     private let hotkey = HotkeyTap()
     private var modelReady = false
+    private var sigterm: DispatchSourceSignal?
+    private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        DiagLog.write("session start pid=\(getpid())")
+        DiagLog.write("session start pid=\(getpid()) path=\(Bundle.main.bundlePath)")
+        SessionMarker.begin()
+
+        // pkill/logout send SIGTERM; exit cleanly so it isn't recorded as a crash.
+        signal(SIGTERM, SIG_IGN)
+        sigterm = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        sigterm?.setEventHandler { NSApplication.shared.terminate(nil) }
+        sigterm?.resume()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let menu = NSMenu()
@@ -20,11 +30,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Open Settings File", action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Open Log", action: #selector(openLog), keyEquivalent: ""))
+        loginItem.target = self
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(loginItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Handy Swift", action: #selector(quit), keyEquivalent: "q"))
         statusItem.menu = menu
 
-        dictation.onStateChange = { [weak self] _ in self?.refresh() }
+        dictation.onStateChange = { [weak self] state in
+            SessionMarker.phase("\(state)")
+            self?.refresh()
+        }
         hotkey.onToggle = { [weak self] in self?.dictation.toggle() }
         hotkey.isActive = { [weak self] in self?.dictation.isActive ?? false }
         hotkey.onCancel = { [weak self] in self?.dictation.cancel() }
@@ -51,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         DiagLog.write("session end")
+        SessionMarker.end()
     }
 
     /// The event tap needs Accessibility; keep retrying until the user grants it.
@@ -84,6 +101,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func retypeLast() {
         // Let the menu close and focus return to the previous window first.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.dictation.retypeLast() }
+    }
+
+    @objc private func toggleLogin() {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            } else {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            DiagLog.write("session login item change failed error=\"\(error.localizedDescription)\"")
+            NSSound.beep()
+        }
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 
     @objc private func openSettings() {

@@ -60,3 +60,12 @@ codesign --force --deep --options runtime --entitlements "$APP_DIR/Contents/Hand
     "$APP_DIR"
 
 echo "Built: $APP_DIR"
+
+# INSTALL=1 copies to ~/Applications, the stable path the login item points at.
+if [[ "${INSTALL:-0}" == "1" ]]; then
+    pkill -x "$APP_NAME" || true
+    rm -rf "$HOME/Applications/${APP_NAME}.app"
+    mkdir -p "$HOME/Applications"
+    cp -R "$APP_DIR" "$HOME/Applications/"
+    echo "Installed: $HOME/Applications/${APP_NAME}.app"
+fi

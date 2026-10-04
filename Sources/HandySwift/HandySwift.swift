@@ -3,12 +3,14 @@ import AppKit
 @main
 struct HandySwiftApp {
     static func main() {
-        // Headless check of the ASR path: HandySwift --transcribe <audio file>
+        // Headless check of ASR + post-processing (everything but mic and typing):
+        //   HandySwift --transcribe <audio file>
         let args = CommandLine.arguments
         if args.count == 3, args[1] == "--transcribe" {
             Task {
                 do {
-                    print(try await Transcriber().transcribe(file: URL(fileURLWithPath: args[2])))
+                    let raw = try await Transcriber().transcribe(file: URL(fileURLWithPath: args[2]))
+                    print(Dictation.postProcess(raw, Settings.load()).text)
                     exit(0)
                 } catch {
                     FileHandle.standardError.write("\(error)\n".data(using: .utf8)!)

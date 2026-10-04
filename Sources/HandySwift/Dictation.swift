@@ -29,6 +29,12 @@ final class Dictation {
 
     var isActive: Bool { state != .idle }
 
+    /// Filler/stutter filter, then domain corrections — the order Handy.NET uses.
+    static func postProcess(_ raw: String, _ settings: Settings) -> (text: String, applied: [DomainCorrector.Applied]) {
+        let filtered = TranscriptFilter.filter(raw, lang: settings.appLanguage, customFillerWords: settings.customFillerWords)
+        return DomainCorrector.apply(filtered, settings.domainCorrections)
+    }
+
     func cancel() {
         switch state {
         case .idle:
@@ -87,8 +93,7 @@ final class Dictation {
                     self.state = .idle
                 case .success(let raw):
                     let settings = Settings.load()
-                    let filtered = TranscriptFilter.filter(raw, lang: settings.appLanguage, customFillerWords: settings.customFillerWords)
-                    let (text, rules) = DomainCorrector.apply(filtered, settings.domainCorrections)
+                    let (text, rules) = Dictation.postProcess(raw, settings)
                     let fixes = rules.isEmpty ? "" : " corrections=\"\(rules.map { "\($0.from)->\($0.to)x\($0.count)" }.joined(separator: ";"))\""
                     if text.isEmpty {
                         DiagLog.write("\(head) raw_chars=\(raw.count) outcome=empty")
