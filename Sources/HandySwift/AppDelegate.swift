@@ -3,6 +3,7 @@ import AVFoundation
 import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var initialCommand: SingleInstance.Command?
     private var statusItem: NSStatusItem!
     private let statusLine = NSMenuItem(title: "Loading model…", action: nil, keyEquivalent: "")
     private let dictation = Dictation()
@@ -81,11 +82,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        if let initialCommand { handle(initialCommand) }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        dictation.cancel()
         DiagLog.write("session end")
         SessionMarker.end()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showSettings()
+        return false
+    }
+
+    func handle(_ command: SingleInstance.Command) {
+        switch command {
+        case .toggle: dictation.toggle()
+        case .cancel: dictation.cancel()
+        case .show: showSettings()
+        }
     }
 
     /// The event tap needs Accessibility; keep retrying until the user grants it.

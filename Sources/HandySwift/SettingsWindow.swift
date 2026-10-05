@@ -36,6 +36,8 @@ final class SettingsStore: ObservableObject {
 
     func apply() {
         draft.historyLimit = max(1, draft.historyLimit)
+        draft.noInputTimeoutMs = max(0, draft.noInputTimeoutMs)
+        draft.maxRecordingMs = max(0, draft.maxRecordingMs)
         draft.save()
         saved = draft
         let loginNow = SMAppService.mainApp.status == .enabled
@@ -306,6 +308,21 @@ private struct AdvancedPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            GroupTitle("Recording safeguards")
+            Card {
+                Row(label: "No audio timeout", hint: "Discard if the microphone stops delivering audio. Zero disables.", first: true) {
+                    TextField("", value: $store.draft.noInputTimeoutMs, format: .number)
+                        .textFieldStyle(.roundedBorder).frame(width: 90)
+                    Text("ms").foregroundStyle(.secondary)
+                }
+                Row(label: "Maximum recording", hint: "Stop and transcribe at this limit. Zero disables.") {
+                    TextField("", value: $store.draft.maxRecordingMs, format: .number)
+                        .textFieldStyle(.roundedBorder).frame(width: 90)
+                    Text("ms").foregroundStyle(.secondary)
+                }
+            }
+            Hint("Checked once a second. Defaults: 15 seconds without audio, 5 minutes maximum recording.")
+
             GroupTitle("Output")
             Card {
                 Row(label: "If the target window lost focus", hint: "Handy remembers the window you started dictating in.", first: true) {

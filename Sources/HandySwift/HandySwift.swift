@@ -20,10 +20,28 @@ struct HandySwiftApp {
             dispatchMain()
         }
 
-        let app = NSApplication.shared
-        let delegate = AppDelegate()
-        app.delegate = delegate
-        app.setActivationPolicy(.accessory)
-        app.run()
+        let command = args.count == 2 ? SingleInstance.Command(argument: args[1]) : nil
+        guard args.count == 1 || command != nil else {
+            FileHandle.standardError.write(Data("Usage: HandySwift [--show | --toggle-transcription | --cancel | --transcribe <audio file>]\n".utf8))
+            exit(1)
+        }
+        do {
+            // Acquire ownership before loading settings/history, claiming the marker or registering hotkeys.
+            let instance = try SingleInstance(directory: Settings.directory)
+            guard instance.isPrimary else {
+                try instance.forward(command ?? .show)
+                return
+            }
+            let app = NSApplication.shared
+            let delegate = AppDelegate()
+            delegate.initialCommand = command
+            try instance.listen { [weak delegate] in delegate?.handle($0) }
+            app.delegate = delegate
+            app.setActivationPolicy(.accessory)
+            withExtendedLifetime((instance, delegate)) { app.run() }
+        } catch {
+            FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+            exit(1)
+        }
     }
 }

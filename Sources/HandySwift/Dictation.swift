@@ -19,6 +19,7 @@ final class Dictation {
     private var generation = 0
     private var counter = 0
     private var micUsed = "default"
+    private var watchdog: DispatchSourceTimer?
 
     // All entry points run on the main queue.
 
@@ -39,6 +40,7 @@ final class Dictation {
     }
 
     func cancel() {
+        stopWatchdog()
         switch state {
         case .idle:
             return
@@ -65,8 +67,9 @@ final class Dictation {
     private func start() {
         counter += 1
         target = FocusGuard.current()
+        let settings = Settings.load()
         do {
-            micUsed = try recorder.start(deviceName: Settings.load().microphoneDeviceName)
+            micUsed = try recorder.start(deviceName: settings.microphoneDeviceName)
         } catch {
             DiagLog.write("dictation id=\(counter) outcome=error stage=record error=\"\(error.localizedDescription)\"")
             NSSound.beep()
@@ -74,9 +77,11 @@ final class Dictation {
         }
         startedAt = Date()
         state = .recording
+        startWatchdog(settings)
     }
 
     private func finish() {
+        stopWatchdog()
         let samples = recorder.stop()
         let recMs = Int(Date().timeIntervalSince(startedAt) * 1000)
         let peak = samples.reduce(Float(0)) { max($0, abs($1)) }
@@ -125,6 +130,39 @@ final class Dictation {
                 }
             }
         }
+    }
+
+    private func startWatchdog(_ settings: Settings) {
+        guard settings.noInputTimeoutMs > 0 || settings.maxRecordingMs > 0 else { return }
+        let policy = RecordingWatchdog(startedAt: ProcessInfo.processInfo.systemUptime,
+                                       noInputTimeoutMs: settings.noInputTimeoutMs,
+                                       maxRecordingMs: settings.maxRecordingMs)
+        let id = counter
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.state == .recording, self.counter == id else { return }
+            switch policy.action(now: ProcessInfo.processInfo.systemUptime, lastInputAt: self.recorder.lastInputAt) {
+            case .none: break
+            case .transcribe:
+                DiagLog.write("dictation id=\(self.counter) watchdog=max_recording limit_ms=\(settings.maxRecordingMs)")
+                self.finish()
+            case .discard:
+                self.stopWatchdog()
+                _ = self.recorder.stop()
+                self.generation += 1
+                DiagLog.write("dictation id=\(self.counter) outcome=no_input discarded=true limit_ms=\(settings.noInputTimeoutMs)")
+                NSSound.beep()
+                self.state = .idle
+            }
+        }
+        watchdog = timer
+        timer.resume()
+    }
+
+    private func stopWatchdog() {
+        watchdog?.cancel()
+        watchdog = nil
     }
 
     private func deliver(_ text: String, to target: FocusTarget?, settings: Settings, logHead: String) {

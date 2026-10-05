@@ -7,15 +7,24 @@ final class Recorder {
     private let lock = NSLock()
     private var samples: [Float] = []
     private var _levels = [Float](repeating: 0, count: 5)
+    private var _lastInputAt: TimeInterval?
+    private var captureGeneration = 0
 
     /// Five 0…1 bar levels from the most recent buffer. Read by the overlay meter.
     var levels: [Float] { lock.withLock { _levels } }
+    var lastInputAt: TimeInterval? { lock.withLock { _lastInputAt } }
     private let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
 
     /// `deviceName` empty or not found = system default input. Returns the device actually used.
     @discardableResult
     func start(deviceName: String = "") throws -> String {
-        lock.withLock { samples.removeAll(keepingCapacity: true) }
+        let generation = lock.withLock {
+            captureGeneration += 1
+            samples.removeAll(keepingCapacity: true)
+            _levels = _levels.map { _ in 0 }
+            _lastInputAt = nil
+            return captureGeneration
+        }
 
         // A fresh engine per recording: switching devices on a running engine is unreliable.
         engine = AVAudioEngine()
@@ -34,6 +43,11 @@ final class Recorder {
 
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
             guard let self else { return }
+            guard self.lock.withLock({
+                guard generation == self.captureGeneration else { return false }
+                self._lastInputAt = ProcessInfo.processInfo.systemUptime
+                return true
+            }) else { return }
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * self.target.sampleRate / format.sampleRate) + 1
             guard let out = AVAudioPCMBuffer(pcmFormat: self.target, frameCapacity: capacity) else { return }
             var fed = false
@@ -48,6 +62,7 @@ final class Recorder {
             let chunk = UnsafeBufferPointer(start: data[0], count: Int(out.frameLength))
             let levels = Recorder.barLevels(chunk, bars: 5)
             self.lock.withLock {
+                guard generation == self.captureGeneration else { return }
                 self.samples.append(contentsOf: chunk)
                 self._levels = levels
             }
@@ -67,7 +82,11 @@ final class Recorder {
     func stop() -> [Float] {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        return lock.withLock { _levels = _levels.map { _ in 0 }; return samples }
+        return lock.withLock {
+            captureGeneration += 1
+            _levels = _levels.map { _ in 0 }
+            return samples
+        }
     }
 
     /// RMS per equal slice, mapped -55 dBFS → 0 … -8 dBFS → 1 with Handy.NET's curve.

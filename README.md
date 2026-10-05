@@ -14,6 +14,8 @@ Upstream Handy on macOS pastes with a simulated Cmd+V. A synthetic modifier like
 ## Features
 
 - **Ctrl+Space** starts and stops dictation, and **Esc** cancels it at any point, including mid-transcription.
+- **Recording safeguards.** A microphone that stops delivering audio is discarded after 15 seconds. Recordings stop and transcribe automatically after five minutes. Both limits can be changed or disabled in Advanced settings; silent audio does not trigger the no-input timeout.
+- **Single instance.** Opening Handy again shows the running app's settings. Command-line controls forward to that same instance, keeping one hotkey listener and one recording session.
 - **Focus guard.** Handy records the window that had focus when you started. If focus moved, it brings that window back before typing. If that fails, the text goes to the clipboard instead of into the wrong app. It re-checks the window before every character.
 - **Option+Shift+C** copies the last transcript. **Option+Shift+V** retypes it into the focused window.
 - **Transcript history.** Open **History…** from the menu bar to copy, delete or clear saved transcripts. The latest 50 are kept by default, including transcripts recovered to the clipboard; the last transcript remains available after restarting.
@@ -63,6 +65,7 @@ Use **Settings…** in the menu-bar menu (shortcut, microphone, typing, language
 - `pasteFocusPolicy`: `RestoreAndPaste` (the default), `RefuseAndCopy` or `PasteAnyway`.
 - `customFillerWords`: `null` uses the language defaults, and `[]` turns filler removal off.
 - `historyLimit`: number of recent transcripts to retain (default 50, minimum 1). Applying a smaller limit deletes older entries. Transcripts are saved in `history.json` beside settings, using Handy.NET's `Text` / `TimestampUtc` format. History contains transcript text only, with no audio retention.
+- `noInputTimeoutMs`: discard recording after this long without audio callbacks (default 15000). `maxRecordingMs`: stop and transcribe at this duration (default 300000). Zero disables either guard. Limits are captured when recording starts and checked once a second.
 
 See [FEATURES.md](FEATURES.md) for the local Handy.NET parity audit and remaining work.
 
@@ -78,6 +81,16 @@ swift test                # unit tests
 ```
 
 `HandySwift --transcribe <audio file>` runs the recognition and post-processing pipeline headless. Use it to check the model without a microphone.
+
+To control the running app from a script, use its executable:
+
+```sh
+~/Applications/HandySwift.app/Contents/MacOS/HandySwift --toggle-transcription
+~/Applications/HandySwift.app/Contents/MacOS/HandySwift --cancel
+~/Applications/HandySwift.app/Contents/MacOS/HandySwift --show
+```
+
+If no instance is running, these commands launch the app and apply the command. Headless `--transcribe` stays independent and does not claim the app lock or session marker. Run `python3 scripts/test-single-instance.py` to check command forwarding and crash recovery without starting microphone capture.
 
 ## License
 
