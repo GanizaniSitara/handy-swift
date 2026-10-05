@@ -6,6 +6,9 @@ import Foundation
 struct Settings: Codable, Equatable {
     /// Dictation chord in Handy.NET's notation, e.g. "Ctrl+Space".
     var hotkey = "Ctrl+Space"
+    /// Alternate cancel chord for remote sessions; Alt is Option on Mac.
+    var cancelChordHotkey = "Alt+Shift+X"
+    var cancelChordEnabled = true
     /// Input device name; empty = system default.
     var microphoneDeviceName = ""
     var charDelayMs: Double = 3
@@ -32,6 +35,11 @@ struct Settings: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Settings()
         hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? d.hotkey
+        cancelChordHotkey = try c.decodeIfPresent(String.self, forKey: .cancelChordHotkey) ?? d.cancelChordHotkey
+        cancelChordEnabled = try c.decodeIfPresent(Bool.self, forKey: .cancelChordEnabled) ?? d.cancelChordEnabled
+        if cancelChordHotkey.caseInsensitiveCompare("Ctrl+Shift+X") == .orderedSame {
+            cancelChordHotkey = d.cancelChordHotkey
+        }
         microphoneDeviceName = try c.decodeIfPresent(String.self, forKey: .microphoneDeviceName) ?? d.microphoneDeviceName
         charDelayMs = try c.decodeIfPresent(Double.self, forKey: .charDelayMs) ?? d.charDelayMs
         pasteFocusPolicy = try c.decodeIfPresent(String.self, forKey: .pasteFocusPolicy) ?? d.pasteFocusPolicy
@@ -44,14 +52,31 @@ struct Settings: Codable, Equatable {
     }
 
     /// Writes a default file on first run; a malformed file is logged and defaults are used.
-    static func load() -> Settings {
+    static func load(from url: URL = Self.url) -> Settings {
         guard let data = try? Data(contentsOf: url) else {
             let s = Settings()
-            s.save()
+            s.save(to: url)
             return s
         }
         do {
-            return try JSONDecoder().decode(Settings.self, from: data)
+            let settings = try JSONDecoder().decode(Settings.self, from: data)
+            // Persist new defaults/this migration, retaining unknown fields from newer settings.
+            if var fields = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let old = fields["cancelChordHotkey"] as? String
+                if old == nil || old?.caseInsensitiveCompare("Ctrl+Shift+X") == .orderedSame
+                    || fields["cancelChordEnabled"] == nil {
+                    fields["cancelChordHotkey"] = settings.cancelChordHotkey
+                    fields["cancelChordEnabled"] = settings.cancelChordEnabled
+                    do {
+                        let migrated = try JSONSerialization.data(withJSONObject: fields, options: [.prettyPrinted, .sortedKeys])
+                        try migrated.write(to: url, options: .atomic)
+                        DiagLog.write("settings cancel shortcut defaults updated")
+                    } catch {
+                        DiagLog.write("settings cancel chord migration could not be saved error=\"\(error)\"")
+                    }
+                }
+            }
+            return settings
         } catch {
             DiagLog.write("settings unreadable, using defaults error=\"\(error)\"")
             return Settings()
@@ -59,13 +84,16 @@ struct Settings: Codable, Equatable {
     }
 
     var dictationShortcut: Shortcut { Shortcut(hotkey) ?? .dictationDefault }
+    var cancelChordShortcut: Shortcut? {
+        cancelChordEnabled ? (Shortcut(cancelChordHotkey) ?? .cancelDefault) : nil
+    }
 
     static let didChange = Notification.Name("HandySwiftSettingsDidChange")
 
-    func save() {
-        try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
+    func save(to url: URL = Self.url) {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try? enc.encode(self).write(to: Self.url, options: .atomic)
+        try? enc.encode(self).write(to: url, options: .atomic)
     }
 }

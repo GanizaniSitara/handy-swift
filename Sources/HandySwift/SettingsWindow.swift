@@ -239,6 +239,11 @@ private struct GeneralPage: View {
                     ShortcutRecorder(hotkey: $store.draft.hotkey, suspend: store.suspendHotkey)
                 }
                 Row(label: "Cancel shortcut") { Text("Esc").foregroundStyle(.secondary) }
+                Row(label: "Alternate cancel shortcut", hint: "Alternative to Esc for remote sessions.") {
+                    ShortcutRecorder(hotkey: $store.draft.cancelChordHotkey, suspend: store.suspendHotkey, fallback: .cancelDefault)
+                        .disabled(!store.draft.cancelChordEnabled)
+                    Toggle("", isOn: $store.draft.cancelChordEnabled).labelsHidden().toggleStyle(.switch)
+                }
                 Row(label: "Copy last transcription") { Text("⌥⇧C").foregroundStyle(.secondary) }
                 Row(label: "Retype last transcription") { Text("⌥⇧V").foregroundStyle(.secondary) }
             }
@@ -435,11 +440,12 @@ private struct LogPage: View {
 struct ShortcutRecorder: View {
     @Binding var hotkey: String
     let suspend: (Bool) -> Void
+    var fallback: Shortcut = .dictationDefault
     @State private var recording = false
     @State private var monitor: Any?
 
     var body: some View {
-        Button(recording ? "Press shortcut…" : (Shortcut(hotkey) ?? .dictationDefault).symbols) {
+        Button(recording ? "Press shortcut…" : (Shortcut(hotkey) ?? fallback).symbols) {
             recording ? stop() : start()
         }
         .frame(minWidth: 130)

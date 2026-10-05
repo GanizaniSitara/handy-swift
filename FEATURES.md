@@ -1,6 +1,6 @@
 # Handy.NET parity audit
 
-Audited 2026-10-04 against the local Handy.NET checkout at `4cc8595`:
+Audited 2026-10-04, with cancel-shortcut update 2026-10-05 against the local Handy.NET checkout at `e878835`:
 `src/Handy/Services/*`, `App.xaml.cs`, `MainWindow.xaml` and its code-behind,
 `HistoryWindow`, `HelpWindow`, `RecordingOverlay`, `FEATURES.md`, and `README.md`.
 Swift baseline: `4ee5042`, plus the history implementation in v0.3.0.
@@ -8,12 +8,23 @@ This is a source audit; it does not imply live microphone or injection validatio
 
 Working-tree update 2026-10-05 (after v0.3.0): recording watchdogs and
 single-instance/CLI forwarding are implemented. These additions are not yet in
-the public release. All 37 unit tests pass; separate-process IPC checks cover
+the public release. All 49 unit tests pass; separate-process IPC checks cover
 commands, startup races and crash recovery. An isolated harness using the actual
 Dictation source verified discard, ceiling transcription and timer teardown.
-The local Apple-Development-signed 0.3.1-dev app is installed: duplicate launch,
+The local Apple-Development-signed 0.3.2-dev app is installed: duplicate launch,
 show, live recording toggle/cancel (unchanged history) and the Advanced UI were
 checked. The model and hotkey loaded without new permission prompts.
+
+The 2026-10-05 shortcut update matches Handy.NET DCT-034: Option+Shift+X is
+the alternate cancel chord, alongside existing Option+Shift+C/V recovery keys.
+The alternate chord is configurable/disableable; old Ctrl+Shift+X defaults
+migrate while custom chords and the enabled state are preserved. Escape remains
+available, and cancellation takes priority over a conflicting trigger while active.
+Ctrl+Space followed by Option+Shift+X was verified through the installed global
+tap: recording returned to idle with history unchanged. The live settings persist
+`cancelChordHotkey=Alt+Shift+X` and `cancelChordEnabled=true`; the General page
+shows all four shortcuts. C/V routing and matching key-up consumption are covered
+by regression tests.
 
 Validation for v0.3.0: `swift test` passed all 29 tests (seven history
 tests), and a real AppKit preview of the history view was checked with synthetic
@@ -42,8 +53,8 @@ class comment claiming they round-trip).
 | `settingsVersion` | `3` | Missing: explicit schema version and migrations. |
 | `hotkey` | `Ctrl+Space` | Present: configurable session event tap; consumes its own down/up events without injecting modifiers. |
 | `cancelHotkey` | `Escape` | Partial: Escape cancels recording/decoding, but cannot be rebound. |
-| `cancelChordHotkey` | `Ctrl+Shift+X` | Missing: alternate cancel chord for remote desktops. |
-| `cancelChordEnabled` | `true` | Missing. |
+| `cancelChordHotkey` | `Alt+Shift+X` | Present: Option+Shift+X alternate cancel, configurable in General settings. Legacy Ctrl+Shift+X defaults migrate without replacing custom chords. |
+| `cancelChordEnabled` | `true` | Present: disabling the alternate chord leaves Escape available. |
 | `taskCaptureHotkey` | `Ctrl+Shift+Space` | Missing: dedicated capture destination. |
 | `taskCaptureInbox` | `%LOCALAPPDATA%\Handy\task-inbox` | Missing: Mac inbox and consumer need a decision. The port must write atomic capture envelopes, not create task tickets directly. |
 | `copyLastHotkey` | `Alt+Shift+C` | Partial: fixed Option+Shift+C and menu action; history restores the last transcript after restart. |

@@ -5,6 +5,7 @@ import Cocoa
 ///
 ///   Ctrl+Space          toggle dictation (rebindable via settings "hotkey")
 ///   Esc                 cancel (consumed only while a dictation is active)
+///   Option+Shift+X      alternate cancel (rebindable/disableable)
 ///   Option+Shift+C      copy last transcript (same chord as Handy.NET)
 ///   Option+Shift+V      retype last transcript into the focused window
 final class HotkeyTap {
@@ -12,12 +13,13 @@ final class HotkeyTap {
     var onToggle: (() -> Void)?
     var onCopyLast: (() -> Void)?
     var onRetypeLast: (() -> Void)?
-    /// Called synchronously in the tap: must be cheap. Returns whether Escape was consumed.
+    /// Called synchronously in the tap: must be cheap. Cancel keys are consumed only while active.
     var isActive: (() -> Bool)?
     var onCancel: (() -> Void)?
 
     /// The dictation chord; set from settings.
     var dictation = Shortcut.dictationDefault
+    var cancelChord: Shortcut? = .cancelDefault
     /// While the settings window records a new shortcut, let every key through.
     var suspended = false
 
@@ -49,7 +51,7 @@ final class HotkeyTap {
     }
 
     // Runs on the main run loop. Work is deferred so a slow handler can't time the tap out.
-    private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             DiagLog.write("session hotkey tap re-enabled after \(type == .tapDisabledByTimeout ? "timeout" : "user input")")
@@ -68,12 +70,17 @@ final class HotkeyTap {
         let mods = event.flags.intersection([.maskControl, .maskAlternate, .maskShift, .maskCommand])
 
         let action: (() -> Void)?
-        switch (key, mods) {
-        case (dictation.keyCode, dictation.modifiers): action = onToggle
-        case (Key.c, [.maskAlternate, .maskShift]): action = onCopyLast
-        case (Key.v, [.maskAlternate, .maskShift]): action = onRetypeLast
-        case (Key.escape, []) where isActive?() == true: action = onCancel
-        default: return Unmanaged.passUnretained(event)
+        // Cancellation wins over a conflicting dictation chord while recording/decoding.
+        if isActive?() == true,
+           (key == Key.escape && mods.isEmpty) || (cancelChord?.keyCode == key && cancelChord?.modifiers == mods) {
+            action = onCancel
+        } else {
+            switch (key, mods) {
+            case (dictation.keyCode, dictation.modifiers): action = onToggle
+            case (Key.c, [.maskAlternate, .maskShift]): action = onCopyLast
+            case (Key.v, [.maskAlternate, .maskShift]): action = onRetypeLast
+            default: return Unmanaged.passUnretained(event)
+            }
         }
 
         swallowedKeyUps.insert(key)

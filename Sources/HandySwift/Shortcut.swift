@@ -8,6 +8,7 @@ struct Shortcut: Equatable, CustomStringConvertible {
 
     static let modifierMask: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
     static let dictationDefault = Shortcut(keyCode: 49, modifiers: [.maskControl])
+    static let cancelDefault = Shortcut(keyCode: 7, modifiers: [.maskAlternate, .maskShift])
 
     private static let modifierNames: [(CGEventFlags, String)] = [
         (.maskControl, "Ctrl"), (.maskAlternate, "Alt"), (.maskShift, "Shift"), (.maskCommand, "Cmd"),

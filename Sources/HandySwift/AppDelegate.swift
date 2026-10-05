@@ -57,7 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: Settings.didChange, object: nil, queue: .main) { [weak self] _ in
             self?.applySettings()
         }
-        hotkey.dictation = Settings.load().dictationShortcut
+        let settings = Settings.load()
+        hotkey.dictation = settings.dictationShortcut
+        hotkey.cancelChord = settings.cancelChordShortcut
         refresh()
 
         AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -117,10 +119,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refresh() {
         let text: String
+        let cancel = hotkey.cancelChord.map { "Esc or \($0.symbols)" } ?? "Esc"
         switch dictation.state {
         case .idle: text = modelReady ? "Ready — \(hotkey.dictation.symbols) to dictate" : "Loading model…"
-        case .recording: text = "Recording — \(hotkey.dictation.symbols) to finish, Esc to cancel"
-        case .transcribing: text = "Transcribing — Esc to cancel"
+        case .recording: text = "Recording — \(hotkey.dictation.symbols) to finish, \(cancel) to cancel"
+        case .transcribing: text = "Transcribing — \(cancel) to cancel"
         }
         statusItem.button?.image = Palette.trayIcon(dictation.state)
         statusItem.button?.toolTip = "Handy Swift"
@@ -163,6 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applySettings() {
         let settings = Settings.load()
         hotkey.dictation = settings.dictationShortcut
+        hotkey.cancelChord = settings.cancelChordShortcut
         dictation.history.setLimit(settings.historyLimit)
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         refresh()
